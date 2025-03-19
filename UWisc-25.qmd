@@ -1,0 +1,556 @@
+---
+title: "Model Based Sampling for Admissible Quantification of Model Uncertainty"
+author: "Merlise Clyde"
+subtitle: |
+ | University of Wisconsin-Madison
+ 
+institute: "Duke University"
+format: 
+  revealjs:
+    theme: [simple, custom.scss]
+    slide-number: true
+    incremental: true
+    scrollable: false
+    controls: true
+    fragments: true
+    preview-links: auto
+    smaller: true
+    logo: Dukelogo.jpg
+    embed-resources: true
+html-math-method:
+  method: mathjax
+  url: https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js   
+editor: 
+  markdown: 
+    wrap: 72
+execute: 
+  echo: false
+number-sections: false
+pdf-separate-fragments: false
+preview-links: true
+---
+
+
+
+```{r}
+#| echo: false
+#   url: "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" 
+library(BAS)
+```
+
+## Outline
+{{< include macros.qmd >}}
+
+- Canonical Regression Model & Bayesian Model Uncertainty
+
+- Estimation via MCMC Monte Carlo Frequencies
+
+- Probability Proportional to Size Sampling in Finite Populations
+
+- Adaptive Independent Metropolis/Adaptive Importance Sampling 
+
+- Illustration
+
+## Canonical Regression Model
+
+
+
+- Observe response vector $\Y$ with predictor variables $X_1 \dots
+X_p$.  
+
+- Model for data under a specific model $\Mg$:
+\begin{equation*}
+\Y \mid \alpha, \bg, \phi, \Mg \sim \N(\one_n\alpha + \Xg \bg, \I_n/\phi)
+\label{eq:linear.model}
+\end{equation*}
+
+
+- Models $\Mg$ encoded by $\g = (\gamma_1, \ldots \gamma_p)^T$ binary vector with
+  $\gamma_j = 1$ indicating that $X_j$ is included in model $\Mg$
+  where
+  \begin{align*}
+  \gamma_j = 0 & \Leftrightarrow \beta_j = 0 \\
+  \gamma_j = 1 &  \Leftrightarrow \beta_j \neq 0 
+  \end{align*}
+
+- $\Xg$: the $n \times \pg$  design matrix for model $\Mg$
+  
+-  $\bg$:  the $\pg$ vector of non-zero regression coefficients under $\Mg$
+
+-  intercept $\alpha$, precision $\phi$ common to all models
+
+
+
+
+
+  
+
+##  Bayesian Prior Distributions
+
+- $2^p$ models in the model space $\G$
+
+- prior distributions on all unknowns $\tg \equiv (\b_{\Mg}, \alpha_{\Mg}, \phi_{\Mg})$ and $\Mg$
+
+
+- reference priors for $\alpha_{\Mg}$, $\phi_{\Mg}$: $p(\alpha_{\Mg}, \phi_{\Mg} \mid \Mg) \propto 1/\phi_{\Mg}$
+
+- "conventional" priors for $\b_{\Mg} \mid \phi, \Mg$ 
+
+  - independent "spike and slab" priors 
+  - "spike and multivariate slab" priors as mixtures of Zellner's $g$-priors
+
+- Mixtures of g-priors:
+\begin{align*} 
+\b_{\Mg} \mid g, \phi, \Mg & \sim \N\left(\zero, g (\Xg^T \Xg)^{-1}/\phi \right) \\
+g \mid \Mg & \sim \pi(g \mid \Mg) 
+\end{align*}
+   - $g$-prior: point mass for $g$ ($g = n$, or Empirical Bayes estimate of $g$ given $\Mg$)
+   - Zellner-Siow Cauchy prior: $1/g \sim \Gam(n/2, 1/2)$
+   - hyper-$g$-prior: $\frac{g}{1 + g}  \sim \Be(a, b)$, etc
+
+## Marginal Likelihoods of Models
+- for mixtures of $g$-priors, we can integrate out the parameters $\tg = (\bg, \alpha_{\Mg}, \phi_{\Mg})$ given $g$ in closed form
+$$p(\Y \mid \Mg, g)  = \int p(\Y \mid \tg, \Mg)p(\tg  \mid g, \Mg) d\tg $$
+$$p(\Y \mid \M_{\g}, g) = C (1+g)^{(n-1-\pg)/2} \big [ 1 + g(1 -
+R^2_{\g} \big]^{-(n-1)/2}$$
+- marginal likelihood of $\Mg$ is a one-dimensional integral (Laplace approximation or numerical) proportional to
+$$p(\Y \mid \Mg) = \int p(\Y \mid g, \Mg)\pi(g  \mid  \Mg)  dg$$
+- marginal likelihoods for models under mixtures of $g$-priors expressed as functions of $F$-statistics for testing $\bg = 0$, $n$ and $\pg$ 
+
+
+- provides a calibration of p-values via posterior probabilities of models
+
+## Posterior Model Probabilities
+$$p(\Mg \mid\ Y)  = \frac {p(\Y \mid \Mg) p(\Mg)} {\sum_{\g \in \G} p(\Y \mid \Mg)p(\Mg)}$$
+
+- posterior distribution of quantities $\Delta$ of interest under BMA
+$$
+\sum_{\g \in \G} p(\Mg \mid \Y) p(\Delta \mid \Y, \Mg) 
+$$
+  - estimation $\E[\mub = \X\b \mid \Y]$
+  - predictive distributions $p(\Y^* \mid \Y)$, $\E[\Y^* \mid \Y]$
+  - marginal inclusion probabilities $P(\gamma_j = 1 \mid \Y)$
+  - model selection  
+
+. . .
+
+::: {.callout-caution}
+## Can't enumerate all models!
+
+:::
+
+
+
+
+
+
+
+## MCMC Sampling from Posteriors
+
+Use a sample of models from $\G$ to approximate the posterior distribution of models
+
+
+  - design a Markov Chain to transition through $\G$ with stationary distribution $p(\Mg \mid \Y)$
+  $$
+  p(\Mg \mid \Y ) \propto p(\Y \mid \Mg) p(\Mg)
+  $$
+ 
+ - propose a new model from $q(\g^* \mid \g)$ 
+ 
+ - accept moving to $\g^*$ with probability
+$$
+\textsf{MH} = \max(1, \frac{p(\Mg* \mid \Y)p(\Mg^*)/q(\g^* \mid \g)}
+                   {p(\Mg \mid \Y)p(\Mg)/q(\g \mid \g^*)})
+$$
+
+- otherwise stay at model $\Mg$
+
+- models are sampled proportional to their posterior probabilities as $T \to \infty$
+
+
+## Estimation in BMA
+
+Estimate the probabilities of models via Monte Carlo frequencies of models or ergodic averages
+\begin{align*} 
+\widehat{p(\Mg \mid \Y)}  & = \frac{\sum_{t = 1}^T I(\M_t = \Mg)} {T} \\
+ & = \frac{\sum_{\g \in S} n_{\g} I(\Mg \in S)} {\sum n_{\g}} \\
+\end{align*}
+
+- $T$ = # MCMC samples
+- $S$ is the collection of unique sampled models
+- $n_{\g}$ is the frequency of model $\Mg$ in $S$
+- $n = \sum_{\g \in S} n_{\g}$ total number of unique models in the sample
+
+
+- asymptotically unbiased as $T \to \infty$
+
+## Current Status
+
+- BMA/BVS has a reputation of being slow and computationally intensive!
+
+- Porwal and Raftery (PNAS 2022) compare a range of state of the art methods and standards in high-dimensional problems
+- 21 methods based on available R packages
+    - BMA using a range of g-priors or mixtures of g-priors
+    - BIC
+    - Lasso
+    - SCAD
+    - Elastic Net
+    - Horseshoe
+    - EMVS
+    - Spike & Slab Lasso
+    
+- BMA methods are competitive with Lasso in terms of computational speed and better than Lasso and others in terms of  prediction and model selection!
+
+
+## Issues with Monte Carlo Frequencies
+
+- fundamentally unsound to a Bayesian ! (O'Hagan 1987, _The Statistician_)
+
+- in high-dimensional problems many models are rarely or never sampled  (high variance but unbiased)
+
+- ignores observed information in the marginal likelihoods $\times$ prior probabilities!
+
+- alternatives based on estimating the normalizing constant 
+$$C = \sum_{\g \in \S} p(\Y \mid \Mg) p(\Mg)$$
+- renormalized observed marginal likelihoods $\times$ prior probabilities of sampled models in $\S$
+
+  - exact posterior odds and lower variance, 
+  - but can have higher bias if a large fraction of models are not sampled!
+  
+- can we do better using ideas from Finite Population Sampling?
+  
+## MCMC and Finite Population Sampling  
+
+- Can view Metropolis-Hasting sampling from $\G$ (in the limit) as a form of Probability Proportional to Size Sampling (PPS) With Replacement from $\G$
+
+- Let $q(\M_i)$ be the probability of sampling $\M_i$
+- Goal is to estimate 
+$$C = \sum_i^N p(\Y \mid \M_i) p(\M_i)$$
+where $N = |\G|$
+
+- Finite Population Sampling Estimators
+  - Hansen-Hurwitz (HH) (sampling with replacement)
+  - Horvitz-Thompson (HT) (any sampling design*)
+
+## Hansen-Hurwitz (HH)
+
+- Hansen-Hurwitz (1943) may be viewed as an importance sampling estimate 
+$$\hat{C} = \frac{1}{n}\sum_{i=1}^n \frac{ n_i p(\Y \mid \M_i) p(\M_i)}{q(\M_i)}
+$$
+- If we have "perfect" samples from the posterior then 
+$q(\M_i) = \frac{p(\Y \mid \M_i)p(\M_i)}{C}$ and recover $C$!
+
+- Since $C$ is unknown,  apply the ratio HH estimator (or self-normalized IS)
+$$
+\hat{C} = \frac{\frac1 n \sum_i^n \frac{n_i p(\Y \mid \M_i) p(\M_i)}{q(\M_i)}}{ \frac1 n \sum_i^n \frac{1}{q(\M_i)}} = \left[ \frac{1}{n}  \sum_i \frac{n_i}{p(\Y \mid \M_i) p(\M_i)} \right]^{-1}
+$$
+
+. . .
+
+This recovers the harmonic mean estimator  of Newton & Raftery (1994) 
+-   while unbiased, it's is highly unstable!
+
+
+## Horvitz-Thompson (HT)
+
+- FPS estimates such as HH that depend on MC frequencies 
+  - violate the Likelihood principle (Basu, 1988)
+  - are inadmissible !
+
+- HT estimate of normalizing constant: 
+$$\quad \hat{C} = \frac{1}{n} \sum_{i \in n} \frac{p(\Y \mid \M_i)p(\M_i)} {\pi_i}$$
+- $\pi_i$ is the inclusion probability that $\g_i \in S$ 
+- under sampling with replacement
+$\pi_i = 1 - (1 - q(\M_i))^\text{T}$
+
+- Horvitz-Thompson dominates Hansen-Hurvitz (smaller variance) and is the unique hyper-admissible estimate of $C$ (Joshi, 1972; Ramakrishnan, 1973)
+
+
+## Basu and Bayes
+
+Basu's (1971) famous circus example illustrated potential problems with the Horvitz-Thompson estimator (similar problem arises with IS)
+
+
+- violates the likelihood principle
+
+- once we have samples, $p(\Y \mid \M_i) p(\M_i)$ are fixed and the sampling  probabilities are not relevant
+
+- only randomness is for the remaining units that were not sampled. (which is related to the sampling design)
+
+- Basu's estimate  under SWOP (using $\pi_i \propto A_i = q(\M_i)$), 
+$$C = \sum_{i \in S} p(\Y \mid \M_i) p(\M_i) + \frac{1}{n} \left(  \sum_{i \in S} \frac{p(\Y \mid \M_i)p(\M_i)}{\pi_i} \right) \times \left(\sum_{i \notin S} \pi_i \right)$$
+- conditions on the observed data sum and estimates remaining 
+
+## Model Based Methods
+
+Basu (1971)'s estimate of the total can be justified as a "super-population" Model Based approach (Meeden and Ghosh, 1983)
+
+- Let $m_i = p(\Y \mid \M_i) p(\M_i)$
+\begin{align} 
+m_i  \mid \pi_i &\ind N(\pi_i \eta, \tau^2 \pi_i^2) \\
+p(\eta, \sigma^2) & \propto 1/\tau^2
+\end{align}
+
+- posterior mean of $\eta$ is $\hat{\eta} = \frac{1}{n} \sum_{i \in S} \frac{m_i}{\pi_i}$ (the HT of the total)
+
+- using the posterior predictive for $m_i \notin S$, $\E[m_i \mid m_j \in S] = \pi_i \hat{\eta}$
+\begin{align*}
+C & = \sum_{i \in \G} m_i =  \sum_{i \in S} m_i + \sum_{i \notin S} m_i \\
+\hat{C} & = \sum_{i \in S} m_i + \sum_{i \notin S} \hat{\eta} \pi_i 
+ = \sum_{i \in S} m_i +  \left[\frac{1}{n} \sum_{i \in S} \frac{m_i}{\pi_i} \right] \sum_{i \notin S} \pi_i 
+\end{align*}
+
+##  Final Posterior Estimates
+
+- estimate of posterior probability $\Mg$ for $\Mg \in S$
+$$
+\frac{p(\Y \mid \Mg) p(\Mg)}{\sum_{i \in S} p(\Y \mid \M_i) p(\M_i) +  \frac{1}{n} \sum_{i \in S} \frac{p(\Y \mid \M_i) p(\Mi)}{\pi_i}\sum_{i \in S} (1 - \pi_i)}
+$$
+
+- estimate of all models in $\G - S$ from the predictive distribution
+$$
+\frac{\frac{1}{n} \sum_{i \in S} \frac{p(\Y \mid \M_i) p(\Mi)}{\pi_i}\sum_{i \in S} (1 - \pi_i)}{\sum_{i \in S} p(\Y \mid \M_i) p(\M_i) +  \frac{1}{n} \sum_{i \in S} \frac{p(\Y \mid \M_i) p(\Mi)}{\pi_i}\sum_{i \in S} (1 - \pi_i)}
+$$
+- Uses renormalized marginal likelihoods of sampled models 
+
+- easy to compute marginal inclusion probabilities 
+
+
+
+- Can also derive $\E[\b \mid \Y]$, $\E[\X\b \mid \Y]$, $\E[\Y^* \mid \Y]$ or $p(\Delta \mid \Y)$
+
+
+- still have to come up with a good $q(\M_i)$!
+
+
+## Adaptive Independent MH to the Rescue?
+
+Griffin et al (2021):
+
+ - Independent Metropolis Hastings 
+   $$q(\g) = \prod \pi_i^{\gamma_i} (1 - \pi_i)^{1-\gamma_i}$$
+   
+ -  Product of **Independent** Bernoullis is optimal for target  where $\gamma_j$ are independent _a posteriori_
+ - Use adaptive Independent Metropolis Hastings to learn $\pi_i$ from past samples 
+ 
+ - uses Metropolis-Hastings Ratio to accept proposals + Monte Carlo frequencies to estimate posterior model probabilities
+ 
+ - poor approximation for standalone sampling with replacement/importance sampling with increasing correlation in $\X$
+
+## Choice for $q(\Mg)$ ?
+
+
+- The joint posterior distribution of $\g$ (dropping $\Y$) may be factored:
+$$p(\Mg \mid \Y) \equiv p(\g \mid \Y) = \prod_{j = 1}^p p(\gamma_j \mid \g_{<j})
+$$
+where $\g_{< j}\equiv \{\gamma_k\}$ for $k < j$ and $p(\gamma_1
+\mid \g_{<1}) \equiv p(\gamma_1)$.
+
+
+- As $\gamma_j$ are binary,  re-express  as
+\begin{equation*}
+p(\g \mid \Y) = \prod_{j=1}^p(\rho_{j \mid <j})^{\gamma_j}{(1-\rho_{j
+    \mid <j})}^{1-\gamma_j}
+\end{equation*}
+where $\rho_{j \mid <j} \equiv \Pr(\gamma_j = 1 \mid \g_{<j})$ and
+$\rho_{1 \mid < 1} = \rho_1$, the marginal probability. 
+
+
+- Product of **Dependent** Bernoullis
+
+## Global Adaptive MCMC Proposal
+
+:::: {.columns}
+
+::: {.column width="60%"}
+Factor proposal 
+$$q(\g) = \prod_{j = 1}^p q(\gamma_j \mid \g_{<j}) = \prod_j \Ber(\hat{\rho}_{j \mid <j})
+$$
+
+- Note: $\Pr(\gamma_j = 1 \mid \g_{<j}) = \E[\gamma_j = 1 \mid \g_{<j}]$ 
+
+- Fit a sequence of $p$ regressions $\gamma_j$ on 
+  $\gamma_{<j}$ 
+  \begin{align*}
+ \gamma_1 & = \mu_1 + \epsilon_1 \\
+\gamma_2  & = \mu_2 + \beta_{2 1} (\gamma_1 - \mu_1) + \epsilon_2 \\
+\gamma_3 & = \mu_3 + \beta_{3 1} (\gamma_1 -
+    \mu_1) + \beta_{3 2} (\gamma_2 -
+    \mu_2) + \epsilon_3 \\
+& \vdots \\
+\gamma_p & = \mu_p + \beta_{p 1} (\gamma_1 -
+    \mu_1)  \ldots + \beta_{p-1 \,  p-1} (\gamma_{p-1} -
+    \mu_{p-1})+  \epsilon_p 
+\end{align*}
+
+:::
+
+::: {.column width="30%"}
+
+![](img/tree_v1.png){width="70%}
+:::
+::::
+
+## Compositional Regression 
+
+Approximate model $$\g \sim \N(\mub, \Sigmab_{\g})$$
+
+- Wermouth (1980) compositional regression 
+$$ \Gbf = \one_{T} \mub^T + (\G - \one_T \mub^T) \B + \eps
+$$
+
+- $\Gbf$ is $T \times p$ matrix where row $t$ is $\g_t$
+- $\mub$ is the $p$ dimensional vector of $\E[\g]$
+- $\Sigmab_{\g} = \U^T \U$  where  $\U$ is upper triangular Cholesky decomposition of covariance matrix of $\g$ ($p \times p$)
+- $\B^T = \I_p -  diag(\U)^{-1} \U^{-T}$   (lower triangle)
+- $\B$ is  a $p \times p$ upper triangular matrix with zeros on
+    the diagonal and regression coefficients for $jth$ regression in row $j$
+
+## Estimators of $\B$ and $\mub$
+
+- OLS is BLUE and consistent, but $\Gbf$ may not be full rank
+
+- apply Bayesian Shrinkage with "priors" on $\mub$ (non-informative or Normal) and $\Sigma$ (inverse-Wishart)
+
+- pseudo-posterior mean $\mub$ is the current estimate of the marginal inclusion probabilities $\bar{\g} = \hat{\mub}$
+- use pseudo-posterior mean for $\Sigmab$
+
+- one Cholesky decomposition provides all
+    coefficients for the $p$ predictions for proposing $\g^*$
+    
+- constrain predicted values $\hat{\rho}_{j \mid <j} \in (\delta, 1-\delta)$ 
+
+- generate $\g^*_j \mid \g^*_{< j} \sim \Ber(\hat{\rho}_{j \mid <j})$
+    
+- use as proposal for Adaptive Independent Metropolis-Hastings or Importance Sampling (Accept all) -or- Sampling Without Replacement (future)
+
+## Simulation
+::: {.nonincremental}
+:::: {.columns}
+
+::: {.column width="55%"}
+- `tecator` data (Griffin et al (2021))
+
+- a sample of $p = 20$ variables
+
+- compare enumeration to
+  - MCMC with add, delete, and swap moves with $q$
+  - Adaptive Independent MCMC
+  - Importance Sampling with HT
+  - MCMC+BAS (SWOR independent Bernoulli)
+  - MCMC+BAS + Basu's estimate of $C$
+
+:::
+
+::: {.column width="45%"}
+
+
+
+
+
+```{r sims}
+load("tecator.RData")
+boxplot(time, main="CPU time", ylab = "Time")
+
+```
+
+
+- same settings for all methods for potentially equal number of model evaluations
+:::
+
+
+::::
+
+:::
+
+## MSE Comparision {.center}
+
+:::: {.columns}
+
+::: {.column width="50%"}
+
+```{r}
+#| echo: FALSE
+# load("tecator-mse.dat")
+# colnames(mse.pip) <- c("HT", "AMCMC", "MCMC")
+boxplot(10*sqrt(mse.pip), main="Marginal Inclusion Probabilities", ylab = "10 x RMSE")
+```
+:::
+
+::: {.column width="50%"}
+
+```{r}
+#| echo: FALSE
+# colnames(mse.pp) <- c("HT", "AMCMC", "MCMC")
+
+boxplot(10*sqrt(mse.pp), main="Posterior Model Probabilities", ylab = "10 x RMSE")
+```
+:::
+
+::::
+
+
+## Continued Adaptation ?
+
+- can update Cholesky with rank 1 updates with new models
+- how to combine IS with MH samples (weighting) ?
+- HT/Hajek - computational complexity involved if we need to compute inclusion probability for all models based on updates (previous models and future models)
+- Basu (1971) approach works with PPS-SWOR  (sequential updates $\pi_i$)
+
+
+## Refinements
+
+:::: {.columns}
+
+::: {.column width="50%"}
+- Want to avoid MCMC for 
+    - pseudo Bayesian posteriors used to learn proposal distribution in sample design for models
+    - estimation of posterior model probabilities in model-based approaches (ie learning $\beta$, sampling from predictive distribution)
+    - estimation of general quantities under BMA?
+    
+- avoid infinite regret
+
+-  more general models?
+
+- other mean/variance assumptions for the super-population model lead to other estimates for $C$, $p(\Mg \mid \Y)$, etc
+
+:::
+
+::: {.column width="40%"}
+![](img/turtles_all_the_way_down.jpg)
+
+:::
+::::
+
+
+## Summary
+
+
+:::: {.columns}
+
+::: {.column width="50%"}
+- Adaptive Independent Metropolis proposal for models (use in more complex IS)
+- Use observed values of unique marginal likelihoods of models for estimating posterior distribution
+- Bayes estimates from MC output (solution to O'Hagan '73?)
+
+
+:::
+
+::: {.column width="50%"}
+![](img/The_hindoo_earth.png)
+
+
+
+
+
+:::
+::::
+
+##  Thank You! {.center}
+
+
+
+Code in development version of `BAS` on [https://github.com/merliseclyde/BAS](https://github.com/merliseclyde/BAS)
+
+
+
